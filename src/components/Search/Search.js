@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Container } from "../../useStyles";
+import { MdKeyboardVoice } from "react-icons/md";
+import { AiOutlineAudioMuted } from "react-icons/ai";
 import {
   Wrapper,
   Button,
@@ -10,10 +12,14 @@ import {
   Datas,
   Switcher,
   PrimaryBtn,
+  Center,
 } from "./useStyles";
 import { request } from "../../services/api/request";
 import { useDispatch } from "react-redux";
 import { set_results } from "../../redux/actions/movie_actions";
+import SpeechRecognition, {
+  useSpeechRecognition,
+} from "react-speech-recognition";
 
 const Search = ({ setSearchbar, active, close }) => {
   const inputRef = useRef();
@@ -21,14 +27,23 @@ const Search = ({ setSearchbar, active, close }) => {
   const [data, setData] = useState([]);
   const dispatch = useDispatch();
   const [searchBase, setSearchBase] = useState("movies");
+  const {
+    transcript,
+    listening,
+    resetTranscript,
+    browserSupportsSpeechRecognition,
+  } = useSpeechRecognition();
+  const startListening = () =>
+    SpeechRecognition.startListening({ continuous: true, language: "en-EN" });
+
   const handleSearch = (e) => {
-    setTyped(e.target.value);
+    setTyped(e && e.target.value);
     setTimeout(() => {
       request
         .get(`/search/${searchBase === "movies" ? "movie" : "person"}`, {
           params: {
             api_key: "86940d36084c3669a50736d6baf4f3ce",
-            query: typed,
+            query: typed || transcript,
             include_adult: true,
           },
         })
@@ -57,16 +72,46 @@ const Search = ({ setSearchbar, active, close }) => {
     setData([]);
     inputRef.current.value = "";
   };
+
   useEffect(() => {
     if (active === true) {
       inputRef.current.focus();
       setTyped("");
     }
   }, [active]);
+
+  if (!browserSupportsSpeechRecognition) {
+    return <span>Browser doesn't support speech recognition.</span>;
+  }
+  const stopHandler = () => {
+    SpeechRecognition.stopListening();
+    setTimeout(() => {
+      setTyped(transcript);
+      handleSearch();
+    }, 100);
+    resetTranscript();
+  };
   return (
     <Wrapper className={active ? "show" : ""}>
-      <Container style={{ maxWidth: "600px" }}>
+      <Container
+        style={{
+          maxWidth: "600px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}
+      >
         <div className="form">
+          <Button
+            className={listening ? "active" : ""}
+            onTouchStart={startListening}
+            onMouseDown={startListening}
+            onTouchEnd={() => stopHandler()}
+            onMouseUp={() => stopHandler()}
+          >
+            <MdKeyboardVoice />
+          </Button>
+
           <Input
             ref={inputRef}
             onChange={(e) =>
@@ -196,6 +241,20 @@ const Search = ({ setSearchbar, active, close }) => {
           Collection
         </PrimaryBtn>
       </Switcher>
+
+      <div>
+        {/* <p>Microphone: {listening ? "on" : "off"}</p> */}
+        <Center className={listening ? "recording" : ""}>
+          <h3>{transcript ? transcript : "Listening..."}</h3>
+          <Button
+            className={`mute button hvr-float ${listening ? "recording" : ""}`}
+            onClick={stopHandler}
+          >
+            <AiOutlineAudioMuted />
+          </Button>
+        </Center>
+        <p></p>
+      </div>
     </Wrapper>
   );
 };
